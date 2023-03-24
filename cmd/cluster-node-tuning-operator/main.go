@@ -29,6 +29,7 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/cache"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/healthz"
 
 	tunedv1 "github.com/openshift/cluster-node-tuning-operator/pkg/apis/tuned/v1"
 	"github.com/openshift/cluster-node-tuning-operator/pkg/config"
@@ -125,6 +126,7 @@ func operatorRun() {
 		RetryPeriod:             &le.RetryPeriod.Duration,
 		RenewDeadline:           &le.RenewDeadline.Duration,
 		Namespace:               ntoNamespace,
+		HealthProbeBindAddress:  "0.0.0.0:6060",
 	})
 
 	if err != nil {
@@ -150,6 +152,13 @@ func operatorRun() {
 		klog.Fatalf("unable to add metrics server as runnable under the manager: %v", err)
 	}
 	metrics.RegisterVersion(version.Version)
+
+	if err := mgr.AddHealthzCheck("healthz", healthz.Ping); err != nil {
+		klog.Fatalf("unable to set up health check: %v", err)
+	}
+	if err := mgr.AddReadyzCheck("readyz", healthz.Ping); err != nil {
+		klog.Fatalf("unable to set up ready check: %v", err)
+	}
 
 	if !config.InHyperShift() {
 		if err = (&paocontroller.PerformanceProfileReconciler{
